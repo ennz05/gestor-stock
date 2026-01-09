@@ -1,0 +1,2 @@
+2026-01-02 08:46:37 - Backup creado exitosamente (PHP): gestor_stock_backup_php_2026-01-02_08-46-37.sql (13.72 KB) - 2026-01-02 08:46:37
+2026-01-02 14:49:23 - Backup creado exitosamente (PHP): gestor_stock_backup_php_2026-01-02_14-49-23.sql (12.72 KB) - 2026-01-02 14:49:23
