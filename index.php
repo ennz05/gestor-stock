@@ -59,17 +59,36 @@ foreach ($ultimas_ventas as $venta) {
     $total_ventas_dia += $venta['cantidad'] * $venta['precio_venta'];
 }
 
-// Procesar búsqueda por código de barras
+// Procesar búsqueda por código de barras O nombre del producto
 $codigo_buscado = '';
 $producto_encontrado = null;
+$productos_encontrados = []; // Nueva variable para múltiples resultados
+
 if (isset($_GET['buscar'])) {
     $codigo_buscado = trim($_GET['buscar']);
     if (!empty($codigo_buscado)) {
-        $query_buscar = "SELECT * FROM productos WHERE codigo_barras = :codigo";
+        // Buscar por código de barras O nombre (con LIKE para búsqueda parcial)
+        $query_buscar = "SELECT * FROM productos 
+                        WHERE codigo_barras = :codigo 
+                           OR nombre LIKE :nombre 
+                        LIMIT 10"; // Limitar a 10 resultados
+        
         $stmt_buscar = $db->prepare($query_buscar);
         $stmt_buscar->bindParam(':codigo', $codigo_buscado);
+        
+        // Agregar % para búsqueda parcial en el nombre
+        $termino_nombre = "%" . $codigo_buscado . "%";
+        $stmt_buscar->bindParam(':nombre', $termino_nombre);
+        
         $stmt_buscar->execute();
-        $producto_encontrado = $stmt_buscar->fetch(PDO::FETCH_ASSOC);
+        
+        // Obtener TODOS los productos que coincidan (no solo el primero)
+        $productos_encontrados = $stmt_buscar->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Para compatibilidad con tu código existente, tomamos el primero si hay resultados
+        if (count($productos_encontrados) > 0) {
+            $producto_encontrado = $productos_encontrados[0];
+        }
     }
 }
 ?>
@@ -90,40 +109,57 @@ if (isset($_GET['buscar'])) {
             <button type="button" onclick="buscarProducto()" class="btn-scanner">🔍 Buscar</button>
         </div>
         
-        <?php if ($codigo_buscado && $producto_encontrado): ?>
+        <?php if ($codigo_buscado && count($productos_encontrados) > 0): ?>
         <div class="producto-encontrado">
-            <h4>Producto encontrado:</h4>
-            <div class="producto-info">
+            <h4><?php echo count($productos_encontrados); ?> producto(s) encontrado(s):</h4>
+            
+            <?php foreach ($productos_encontrados as $producto): ?>
+            <div class="producto-info" style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px dashed #eee;">
                 <div class="producto-dato">
                     <span class="label">Código:</span>
-                    <span class="value"><?php echo htmlspecialchars($producto_encontrado['codigo_barras']); ?></span>
+                    <span class="value"><?php echo htmlspecialchars($producto['codigo_barras'] ?: 'Sin código'); ?></span>
                 </div>
                 <div class="producto-dato">
                     <span class="label">Nombre:</span>
-                    <span class="value"><?php echo htmlspecialchars($producto_encontrado['nombre']); ?></span>
+                    <span class="value"><?php echo htmlspecialchars($producto['nombre']); ?></span>
                 </div>
                 <div class="producto-dato">
                     <span class="label">Stock:</span>
-                    <span class="value <?php echo $producto_encontrado['stock_actual'] <= $producto_encontrado['stock_minimo'] ? 'stock-bajo' : 'stock-normal'; ?>">
-                        <?php echo $producto_encontrado['stock_actual']; ?>
+                    <span class="value <?php echo $producto['stock_actual'] <= $producto['stock_minimo'] ? 'stock-bajo' : 'stock-normal'; ?>">
+                        <?php echo $producto['stock_actual']; ?>
                     </span>
                 </div>
                 <div class="producto-dato">
                     <span class="label">Precio:</span>
-                    <span class="value precio">$<?php echo number_format($producto_encontrado['precio_venta'], 2); ?></span>
+                    <span class="value precio">$<?php echo number_format($producto['precio_venta'], 2); ?></span>
                 </div>
                 <div class="producto-acciones">
-                    <a href="modules/inventario/salida.php?producto_id=<?php echo $producto_encontrado['id']; ?>" class="btn btn-success btn-small">Vender</a>
-                    <a href="modules/productos/editar.php?id=<?php echo $producto_encontrado['id']; ?>" class="btn btn-warning btn-small">Editar</a>
-                    <a href="modules/productos/listar.php?buscar=<?php echo urlencode($codigo_buscado); ?>" class="btn btn-info btn-small">Ver detalle</a>
+                    <!-- Botón para vender individualmente (sistema antiguo) -->
+                    <a href="modules/inventario/salida.php?producto_id=<?php echo $producto['id']; ?>" 
+                       class="btn btn-success btn-small">
+                        Vender 1 Producto
+                    </a>
+                    
+                    <!-- Botón para agregar al carrito (nuevo sistema) -->
+                    <button onclick="agregarAlCarrito(<?php echo $producto['id']; ?>, '<?php echo htmlspecialchars(addslashes($producto['nombre'])); ?>')" 
+                            class="btn btn-primary btn-small">
+                        🛒 Agregar al Carrito
+                    </button>
+                    
+                    <a href="modules/productos/editar.php?id=<?php echo $producto['id']; ?>" 
+                       class="btn btn-warning btn-small">
+                        Editar
+                    </a>
                 </div>
             </div>
+            <?php endforeach; ?>
         </div>
-        <?php elseif ($codigo_buscado && !$producto_encontrado): ?>
+        <?php elseif ($codigo_buscado && count($productos_encontrados) === 0): ?>
         <div class="producto-no-encontrado">
             <h4>⚠️ Producto no encontrado</h4>
             <p>El código de barras "<?php echo htmlspecialchars($codigo_buscado); ?>" no existe en la base de datos.</p>
-            <a href="modules/productos/agregar.php?codigo_barras=<?php echo urlencode($codigo_buscado); ?>" class="btn btn-success">
+            <a href="modules/productos/agregar.php?codigo_barras=<?php echo urlencode($codigo_buscado); ?>" 
+               class="btn btn-success">
                 ➕ Agregar nuevo producto con este código
             </a>
         </div>
@@ -150,6 +186,34 @@ if (isset($_GET['buscar'])) {
         </div>
     </div>
     
+    <!-- NUEVA SECCIÓN: ACCESO AL SISTEMA DE VENTAS MÚLTIPLES -->
+    <div class="nuevo-sistema-ventas" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); 
+                                            color: white; 
+                                            padding: 1.5rem; 
+                                            border-radius: 10px; 
+                                            margin-bottom: 2rem;
+                                            box-shadow: 0 4px 20px rgba(40, 167, 69, 0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 style="margin: 0 0 0.5rem 0; font-size: 1.5rem;">🛒 NUEVO: Sistema de Ventas Múltiples</h3>
+                <p style="margin: 0; opacity: 0.9;">Vende varios productos a la vez con nuestro nuevo sistema de carrito</p>
+            </div>
+            <a href="modules/ventas/nueva.php" 
+               style="background: white; 
+                      color: #28a745; 
+                      padding: 0.75rem 1.5rem; 
+                      border-radius: 25px; 
+                      text-decoration: none; 
+                      font-weight: bold;
+                      display: flex;
+                      align-items: center;
+                      gap: 0.5rem;
+                      transition: all 0.3s;">
+                <i class="fas fa-cart-plus"></i> Probar Ahora
+            </a>
+        </div>
+    </div>
+    
     <div class="quick-actions">
         <div class="action-card">
             <h3>📦 Gestión Rápida</h3>
@@ -162,9 +226,9 @@ if (isset($_GET['buscar'])) {
                     <span class="icon">⬆️</span>
                     <span>Entrada Stock</span>
                 </a>
-                <a href="modules/inventario/salida.php" class="btn-action">
-                    <span class="icon">⬇️</span>
-                    <span>Vender Producto</span>
+                <a href="modules/ventas/nueva.php" class="btn-action" style="background: #28a745; color: white;">
+                    <span class="icon">🛒</span>
+                    <span>Venta Múltiple</span>
                 </a>
                 <a href="modules/caja/cierre.php" class="btn-action">
                     <span class="icon">💰</span>
@@ -241,17 +305,20 @@ if (isset($_GET['buscar'])) {
     <div class="section">
         <h3>⚡ Acciones Rápidas</h3>
         <div class="quick-links">
-            <a href="modules/productos/listar.php" class="quick-link">
+            <a href="modules/ventas/nueva.php" class="quick-link" style="background: #28a745; color: white;">
+                <span class="link-icon">🛒</span>
+                <span class="link-text">Venta Múltiple</span>
+                <small style="color: rgba(255,255,255,0.8);">Nuevo sistema con carrito</small>
+            </a>
+            <a href="modules/ventas/index.php" class="quick-link" style="background: #17a2b8; color: white;">
                 <span class="link-icon">📋</span>
-                <span class="link-text">Listar Productos</span>
+                <span class="link-text">Historial Ventas</span>
+                <small style="color: rgba(255,255,255,0.8);">Ver todas las ventas</small>
             </a>
-            <a href="modules/reportes/stock.php" class="quick-link">
-                <span class="link-icon">📊</span>
-                <span class="link-text">Reporte de Stock</span>
-            </a>
-            <a href="modules/configuracion/porcentaje.php" class="quick-link">
-                <span class="link-icon">⚙️</span>
-                <span class="link-text">Configurar % Ganancia</span>
+            <a href="modules/inventario/salida.php" class="quick-link">
+                <span class="link-icon">📤</span>
+                <span class="link-text">Venta Individual</span>
+                <small>Venta rápida de 1 producto</small>
             </a>
             <a href="backups/backup.php?action=backup" class="quick-link" onclick="return confirm('¿Generar backup de la base de datos?')">
                 <span class="link-icon">💾</span>
@@ -288,6 +355,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.value = '';
                 this.focus();
             }
+            
+            // F2 para ir a venta múltiple
+            if (e.key === 'F2' || e.keyCode === 113) {
+                e.preventDefault();
+                window.location.href = 'modules/ventas/nueva.php';
+            }
+            
+            // F3 para buscar
+            if (e.key === 'F3' || e.keyCode === 114) {
+                e.preventDefault();
+                this.focus();
+                this.select();
+            }
         });
         
         // Auto-enfocar cuando se hace clic en cualquier lugar
@@ -306,6 +386,19 @@ function buscarProducto() {
         window.location.href = `index.php?buscar=${encodeURIComponent(codigo)}`;
     } else {
         alert('Por favor, escanee un código de barras o ingréselo manualmente.');
+    }
+}
+
+// Función para agregar producto al carrito
+function agregarAlCarrito(productoId, nombreProducto) {
+    // Preguntar cantidad
+    const cantidad = prompt(`¿Cuántas unidades de "${nombreProducto}" desea agregar al carrito?`, "1");
+    
+    if (cantidad && !isNaN(cantidad) && parseInt(cantidad) > 0) {
+        // Redirigir a la página de ventas con los parámetros
+        window.location.href = `modules/ventas/nueva.php?agregar=${productoId}&cantidad=${cantidad}`;
+    } else if (cantidad !== null) {
+        alert('Por favor ingrese una cantidad válida.');
     }
 }
 
@@ -439,6 +532,15 @@ function venderProductoRapido(productoId) {
     gap: 0.5rem;
     justify-content: flex-start;
     grid-column: 1 / -1;
+    flex-wrap: wrap;
+}
+
+.producto-acciones .btn {
+    min-width: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 
 .producto-no-encontrado p {
@@ -505,8 +607,8 @@ function venderProductoRapido(productoId) {
 }
 
 .btn-small {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.8rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
 }
 
 .action-buttons {
@@ -597,8 +699,7 @@ function venderProductoRapido(productoId) {
 
 .quick-link {
     display: flex;
-    align-items: center;
-    gap: 1rem;
+    flex-direction: column;
     padding: 1rem;
     background: #f8f9fa;
     border-radius: 6px;
@@ -613,8 +714,20 @@ function venderProductoRapido(productoId) {
     transform: translateX(5px);
 }
 
-.link-icon {
+.quick-link .link-icon {
     font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.quick-link .link-text {
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.quick-link small {
+    font-size: 0.85rem;
+    opacity: 0.7;
+    margin-top: 0.25rem;
 }
 
 .no-data {
@@ -622,6 +735,75 @@ function venderProductoRapido(productoId) {
     padding: 2rem;
     color: #6c757d;
     font-style: italic;
+}
+
+/* Nuevos estilos para estadísticas */
+.stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.stat-card {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: transform 0.3s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.stat-icon {
+    font-size: 1.5rem;
+    background: #f8f9fa;
+    padding: 0.75rem;
+    border-radius: 8px;
+}
+
+.stat-info h4 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.stat-info p {
+    margin: 0;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .dashboard-sections {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .action-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .producto-acciones {
+        flex-direction: column;
+    }
+    
+    .producto-acciones .btn {
+        width: 100%;
+    }
+    
+    .welcome-section {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
 }
 </style>
 

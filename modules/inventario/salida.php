@@ -96,7 +96,41 @@ include '../../includes/header.php';
 ?>
 
 <div class="container">
-    <h2>📤 Venta de Productos</h2>
+    <h2>📤 Venta de Productos (Sistema Individual)</h2>
+    
+    <!-- BANNER DE SUGERENCIA PARA EL NUEVO SISTEMA -->
+    <div class="sugerencia-venta-multiple" style="background: #e7f3ff; 
+                                                  border-left: 4px solid #007bff; 
+                                                  padding: 1rem 1.5rem; 
+                                                  margin-bottom: 2rem; 
+                                                  border-radius: 0 8px 8px 0;
+                                                  box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1;">
+                <h4 style="margin-top: 0; color: #0056b3; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-info-circle"></i> ¿Vender varios productos a la vez?
+                </h4>
+                <p style="margin-bottom: 0.5rem; color: #333;">
+                    Prueba nuestro nuevo <strong>sistema de ventas múltiples con carrito</strong> que te permite:
+                </p>
+                <ul style="margin-bottom: 1rem; padding-left: 1.5rem; color: #333;">
+                    <li>🛒 Agregar múltiples productos en una sola venta</li>
+                    <li>📊 Modificar cantidades fácilmente</li>
+                    <li>💰 Ver total en tiempo real</li>
+                    <li>🎫 Generar tickets profesionales</li>
+                </ul>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <a href="../ventas/nueva.php" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-cart-plus"></i> Ir al Sistema de Ventas Múltiples
+                    </a>
+                    <small class="text-muted">o continúa con la venta individual abajo</small>
+                </div>
+            </div>
+            <div style="margin-left: 1rem; color: #007bff; font-size: 2rem;">
+                <i class="fas fa-arrow-right"></i>
+            </div>
+        </div>
+    </div>
     
     <div class="status-info">
         <span class="badge">💰 Caja Abierta: $<?php echo number_format($caja_abierta['monto_inicial'], 2); ?></span>
@@ -398,6 +432,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     .form-actions .btn {
         width: 100%;
+    }
+    
+    .sugerencia-venta-multiple div {
+        flex-direction: column;
+    }
+    
+    .sugerencia-venta-multiple .fa-arrow-right {
+        display: none;
     }
 }
 </style>
